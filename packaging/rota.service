@@ -1,0 +1,18 @@
+[Unit]
+Description=Rota radial launcher
+Documentation=https://github.com/SammyNashed/rota
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/rota/run.sh daemon
+Restart=on-failure
+RestartSec=2
+# The daemon holds an EVIOCGRAB on the mouse; if it wedges, the kernel drops the
+# grab when the fd closes, so a hard kill is always safe.
+KillSignal=SIGTERM
+TimeoutStopSec=5
+
+[Install]
+WantedBy=graphical-session.target

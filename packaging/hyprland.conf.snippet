@@ -1,0 +1,11 @@
+# Rota — optional Hyprland keybind
+#
+# The daemon is started by rota.service (systemd --user), so it needs no
+# exec-once here: a second instance would only refuse to start.
+#
+# Rota's trigger is the middle mouse button, held on the desktop. If you also
+# want a keyboard trigger — the equivalent of Rovyl's Alt+Z — uncomment:
+#
+# bind = ALT, Z, exec, ~/.local/bin/rota toggle
+#
+# The overlay is a layer-shell surface, so it needs no window rules at all.

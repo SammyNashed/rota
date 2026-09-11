@@ -1,0 +1,4 @@
+# Rota needs /dev/uinput to replay the pointer events it grabs.
+# Without this the daemon still runs, but only in observe-only mode: it cannot
+# swallow the middle button, so aiming fights the app underneath.
+KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"

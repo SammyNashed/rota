@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Rota
+Comment=Radial launcher settings
+Exec=rota settings
+Icon=view-grid-symbolic
+Terminal=false
+Categories=Settings;DesktopSettings;
+StartupNotify=true
