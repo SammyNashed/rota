@@ -289,6 +289,11 @@ def cmd_add(cfg: dict, argv: list[str]) -> int:
 def main(argv: list[str]) -> int:
     command = argv[1] if len(argv) > 1 else "daemon"
 
+    if command in ("--version", "version"):
+        from . import __version__
+        print(f"rota {__version__}")
+        return 0
+
     if command in ("open", "close", "toggle", "reload"):
         if send_command(command):
             return 0
@@ -317,7 +322,7 @@ def main(argv: list[str]) -> int:
         return run_daemon()
 
     print(__doc__)
-    print("commands: daemon | open | close | toggle | reload | settings | add | list | apps | seed")
+    print("commands: daemon | open | close | toggle | reload | settings | add | list | apps | seed | version")
     return 2
 
 
