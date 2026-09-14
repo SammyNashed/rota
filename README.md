@@ -170,6 +170,17 @@ now points straight at the cause.
 `add` event), or reboot. No Rota update or reconfiguration fixes it — it's
 the mouse's device-node permissions, not the daemon.
 
+**The wheel opens as a solid black fullscreen square instead of the overlay.**
+A GTK4 GSK renderer bug, not Rota logic: on some GPU/driver combos GTK4's GL
+renderer paints a layer-shell surface's transparent backdrop as opaque black
+instead of see-through (seen after a `mesa`/`nvidia` update). `run.sh` sets
+`GSK_RENDERER=cairo` for exactly this reason, scoped to Rota's own process —
+it doesn't touch a system-wide `GSK_RENDERER=gl` some compositor configs set
+for every app. If it recurs after a driver update, confirm with:
+`GSK_RENDERER=cairo rota daemon` restarted, and check `env | grep GSK_RENDERER`
+inside the running service (`systemctl --user show-environment` won't show
+it — it's process-scoped, not exported to the user session).
+
 ## Licence
 
 Rota is free software under the GNU General Public License, version 3 or later —

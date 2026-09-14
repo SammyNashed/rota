@@ -2,4 +2,4 @@
 # Rota — a radial launcher for Wayland. Copyright (C) 2026 Sammy.
 # Based on Rovyl by HenryCa (https://github.com/HenryCauan/rovyl), GPL-3.0-or-later.
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
