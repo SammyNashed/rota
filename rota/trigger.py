@@ -14,6 +14,7 @@ out as a real middle click and middle-click paste keeps working.
 """
 from __future__ import annotations
 
+import glob
 import os
 import selectors
 import threading
@@ -54,7 +55,8 @@ VIRTUAL_CAPS = {
 }
 
 
-def find_mice(button_code: int = ecodes.BTN_MIDDLE) -> list[evdev.InputDevice]:
+def find_mice(button_code: int = ecodes.BTN_MIDDLE,
+              denied: set[str] | None = None) -> list[evdev.InputDevice]:
     """Real mice carrying the trigger button, and nothing else.
 
     Three filters, each earned by a device on this machine:
@@ -69,13 +71,30 @@ def find_mice(button_code: int = ecodes.BTN_MIDDLE) -> list[evdev.InputDevice]:
     - Our own virtual pointer is excluded, or the daemon grabs the device it
       replays through and every forwarded event comes straight back in. The name
       match also catches a device left behind by a crashed instance.
+
+    Deliberately does *not* use evdev.list_devices(): it silently drops any
+    node the process cannot currently write to, which is exactly what a mouse
+    with a desynced seat ACL looks like (systemd/logind updating mid-session
+    has been seen to leave a device's ACL mask empty — see README). Globbing
+    ourselves and opening every node means a permission failure surfaces as a
+    logged warning instead of the mouse just vanishing with no explanation.
     """
     found = []
-    for path in evdev.list_devices():
+    for path in sorted(glob.glob("/dev/input/event*")):
         try:
             device = evdev.InputDevice(path)
+        except PermissionError:
+            if denied is not None and path not in denied:
+                denied.add(path)
+                print(f"[rota] permission denied opening {path}; if this is "
+                      "your mouse, its seat ACL is likely desynced (common "
+                      "after a systemd/udev update mid-session) — unplug and "
+                      "replug it, or reboot, to force logind to regrant it")
+            continue
         except OSError:
             continue
+        if denied is not None:
+            denied.discard(path)
         caps = device.capabilities()
         keys = caps.get(ecodes.EV_KEY, [])
         rels = caps.get(ecodes.EV_REL, [])
@@ -123,6 +142,7 @@ class MouseTrigger(threading.Thread):
         self._sel = selectors.DefaultSelector()
         self._last_scan = 0.0
         self._fingerprint: frozenset = frozenset()
+        self._denied: set[str] = set()
 
     # -- lifecycle ---------------------------------------------------------
     def setup(self) -> str:
@@ -175,7 +195,7 @@ class MouseTrigger(threading.Thread):
         known = {device.path for device in self.devices}
         present = set()
 
-        for device in find_mice(self.button_code):
+        for device in find_mice(self.button_code, denied=self._denied):
             present.add(device.path)
             if device.path in known:
                 device.close()          # already attached; this is a duplicate handle

@@ -135,6 +135,41 @@ libinput's gesture and palm handling), nothing reporting `KEY_A` (the ASUS N-KEY
 device reports `REL_X` *and* 281 key codes — grabbing it would swallow every
 keystroke), and nothing that lacks the trigger button.
 
+## Troubleshooting
+
+**Mouse stopped triggering the wheel, with no unplug/replug and no config
+change.** Check the daemon's log for a line like:
+
+```
+[rota] permission denied opening /dev/input/eventN; if this is your mouse,
+its seat ACL is likely desynced ...
+```
+
+```sh
+journalctl --user -u rota -b | grep -i "permission denied"
+```
+
+If that's there, the cause isn't Rota: `systemd-logind` grants each mouse a
+per-session ACL (`getfacl /dev/input/eventN` shows a `user:you:rw-` entry), and
+a `systemd`/`udev` package upgrade applied *while the session is running* — an
+ordinary `pacman -Syu` restarting `systemd 260 → 261` mid-session is enough —
+has been seen to leave that ACL with an empty mask. `getfacl` still lists the
+grant, annotated `#effective:---`, but the node is unreadable until logind
+regrants it. The install step's own `udevadm trigger --name-match=/dev/uinput`
+note above described the same failure from a different trigger; this is the
+same OS-level bug showing up on its own, without you running anything.
+
+Older Rota builds went silent here — `evdev.list_devices()` drops any node the
+process can't currently write to, so a desynced mouse looked identical to an
+unplugged one, with nothing in the log to explain why. 0.2.0 stopped using
+that call for exactly this reason: it opens every `/dev/input/event*` node
+itself and logs the permission failure instead of hiding it, so the symptom
+now points straight at the cause.
+
+**Fix:** unplug and replug the mouse (logind regrants the ACL on the fresh
+`add` event), or reboot. No Rota update or reconfiguration fixes it — it's
+the mouse's device-node permissions, not the daemon.
+
 ## Licence
 
 Rota is free software under the GNU General Public License, version 3 or later —
