@@ -52,6 +52,9 @@ from its IPC — plus Python 3.11+ and:
 sudo pacman -S python-gobject python-cairo python-evdev gtk4 gtk4-layer-shell libadwaita
 ```
 
+`rofi` is optional — Settings uses it to pick installed apps if it's on `$PATH`,
+falling back to a built-in search dialog otherwise.
+
 ## Install
 
 ```sh
@@ -107,9 +110,9 @@ cannot swallow the middle button, so aiming fights the window underneath.
 rota settings          # or launch "Rota" from your app menu
 ```
 
-A libadwaita window: slice editor (add installed apps, websites, folders,
-commands and nested sub-wheels; reorder and edit in place), appearance,
-trigger, HUD and game mode. There is no Save button — changes are debounced,
+A libadwaita window: slice editor (add installed apps — picked via Rofi if it's
+installed — websites, folders, commands and nested sub-wheels; reorder and
+edit in place), appearance, trigger, HUD and game mode. There is no Save button — changes are debounced,
 written to `config.toml`, and the running daemon is told to reload, so the next
 time you open the wheel it is already different.
 
