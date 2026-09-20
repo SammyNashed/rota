@@ -263,8 +263,13 @@ class SettingsWindow(Adw.PreferencesWindow):
         if not entries:
             callback(None)
             return
+        # Each line's icon metadata is NUL-separated ("label\0icon\x1fname"),
+        # so this has to go over stdin as raw bytes: communicate_utf8_async
+        # treats the buffer as a C string and silently truncates at the
+        # first embedded NUL, which only ever fed Rofi the first app.
         lines = [f"{e['label']}\0icon\x1f{e.get('icon') or 'application-x-executable'}"
                  for e in entries]
+        stdin_bytes = ("\n".join(lines) + "\n").encode("utf-8")
 
         try:
             proc = Gio.Subprocess.new(
@@ -277,18 +282,18 @@ class SettingsWindow(Adw.PreferencesWindow):
 
         def on_done(source, result) -> None:
             try:
-                ok, stdout, _stderr = source.communicate_utf8_finish(result)
+                ok, stdout_buf, _stderr_buf = source.communicate_finish(result)
             except GLib.Error:
                 callback(None)
                 return
-            text = (stdout or "").strip()
+            text = (stdout_buf.get_data().decode("utf-8") if stdout_buf else "").strip()
             if not (ok and source.get_successful() and text.isdigit()):
                 callback(None)
                 return
             index = int(text)
             callback(entries[index] if 0 <= index < len(entries) else None)
 
-        proc.communicate_utf8_async("\n".join(lines) + "\n", None, on_done)
+        proc.communicate_async(GLib.Bytes.new(stdin_bytes), None, on_done)
 
     def _app_picked_rofi(self, entry: dict | None) -> None:
         if entry is None:
