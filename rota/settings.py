@@ -7,6 +7,8 @@ launcher picks the change up without a restart.
 """
 from __future__ import annotations
 
+import shutil
+
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -228,7 +230,10 @@ class SettingsWindow(Adw.PreferencesWindow):
 
     def _add_slice(self, kind: str) -> None:
         if kind == "desktop":
-            self._choose_app()
+            if shutil.which("rofi"):
+                self._pick_app_via_rofi(self._app_picked_rofi)
+            else:
+                self._choose_app()
             return
         blank = {
             "submenu": {"label": "New sub-wheel", "type": "submenu",
@@ -245,6 +250,52 @@ class SettingsWindow(Adw.PreferencesWindow):
         self._slices().append(dict(blank))
         self._save(); self._refresh_slices()
         self._edit_slice(len(self._slices()) - 1)
+
+    def _pick_app_via_rofi(self, callback) -> None:
+        """Run Rofi as an app picker; calls `callback` with the chosen entry or None.
+
+        Rofi's own drun mode launches apps directly and has no "give me back
+        the selection" output, so instead we drive it in -dmenu mode with our
+        own entry list (same source as the GTK picker: Gio.AppInfo) and ask
+        it to hand back the chosen index.
+        """
+        entries = apps.installed_apps()
+        if not entries:
+            callback(None)
+            return
+        lines = [f"{e['label']}\0icon\x1f{e.get('icon') or 'application-x-executable'}"
+                 for e in entries]
+
+        try:
+            proc = Gio.Subprocess.new(
+                ["rofi", "-dmenu", "-i", "-show-icons", "-format", "i",
+                 "-p", "Add app to wheel"],
+                Gio.SubprocessFlags.STDIN_PIPE | Gio.SubprocessFlags.STDOUT_PIPE)
+        except GLib.Error:
+            callback(None)
+            return
+
+        def on_done(source, result) -> None:
+            try:
+                ok, stdout, _stderr = source.communicate_utf8_finish(result)
+            except GLib.Error:
+                callback(None)
+                return
+            text = (stdout or "").strip()
+            if not (ok and source.get_successful() and text.isdigit()):
+                callback(None)
+                return
+            index = int(text)
+            callback(entries[index] if 0 <= index < len(entries) else None)
+
+        proc.communicate_utf8_async("\n".join(lines) + "\n", None, on_done)
+
+    def _app_picked_rofi(self, entry: dict | None) -> None:
+        if entry is None:
+            return
+        self._slices().append({"label": entry["label"], "type": "desktop",
+                               "target": entry["target"], "icon": entry["icon"]})
+        self._save(); self._refresh_slices()
 
     def _choose_app(self) -> None:
         dialog = Adw.Window(transient_for=self, modal=True,
@@ -314,7 +365,6 @@ class SettingsWindow(Adw.PreferencesWindow):
         group.add(icon_row)
 
         box.append(group)
-        dialog.set_content(box)
 
         def apply(*_a) -> None:
             item["label"] = label_row.get_text()
@@ -325,6 +375,28 @@ class SettingsWindow(Adw.PreferencesWindow):
         for row in (label_row, target_row, icon_row):
             row.connect("changed", apply)
         dialog.connect("close-request", lambda _d: (apply(), False)[1])
+
+        if shutil.which("rofi"):
+            pick_button = Gtk.Button(label="Pick app with Rofi…",
+                                     margin_top=6, margin_start=12,
+                                     margin_end=12, margin_bottom=12,
+                                     halign=Gtk.Align.START)
+
+            def on_pick(_button) -> None:
+                def picked(entry: dict | None) -> None:
+                    if entry is None:
+                        return
+                    item["type"] = "desktop"
+                    label_row.set_text(entry["label"])
+                    target_row.set_text(entry["target"])
+                    icon_row.set_text(entry["icon"])
+                    apply()
+                self._pick_app_via_rofi(picked)
+
+            pick_button.connect("clicked", on_pick)
+            box.append(pick_button)
+
+        dialog.set_content(box)
         dialog.present()
 
     # -- the other pages ---------------------------------------------------
